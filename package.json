@@ -1,0 +1,68 @@
+{
+  "name": "cortico-world-eat",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "吃饭（Eat）—— 给 Coopanion 桌宠的 cortico World 扩展：饱食度、米仓、电饭煲，外加一块水稻田、一个水池和虫灾鸟灾；桌宠用工具做饭、吃饭、种田、立稻草人，主人在控制台厨房/稻田面板直接操作；煮饭和水稻都要时间，下雨会替田里浇水，鸟先吃虫再吃稻子。 / A cortico World extension with satiety, a rice bin, a rice cooker, one rice paddy, a water pool, pests and birds: the pet cooks, eats, farms and puts up scarecrows with tools, the owner uses the console panels; cooking and rice growth both take time, rain waters the field, and birds eat the pests before turning on the crop.",
+  "license": "MIT",
+  "author": {
+    "name": "AqualCross"
+  },
+  "keywords": [
+    "cortico-world",
+    "cortico",
+    "coopanion",
+    "eat",
+    "eating",
+    "hunger",
+    "satiety",
+    "rice",
+    "rice-cooker",
+    "paddy",
+    "farm",
+    "farming",
+    "rice-paddy",
+    "rain",
+    "pet",
+    "game",
+    "pest",
+    "birds",
+    "scarecrow",
+    "disaster"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "dist",
+    "describe.json",
+    "CHANGELOG.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "describe": "node tools/describe.mjs",
+    "check": "node tools/check.mjs",
+    "selfcheck": "node tools/check.mjs",
+    "test": "node --test",
+    "drymount": "node --experimental-transform-types tools/drymount.mts",
+    "prepublishOnly": "node tools/check.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "cortico": {
+    "kind": "world",
+    "api": 6,
+    "displayName": "吃饭",
+    "tags": [
+      "game"
+    ],
+    "webUiClient": "dist/webui.js",
+    "describe": "describe.json"
+  }
+}
