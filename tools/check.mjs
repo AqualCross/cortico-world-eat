@@ -187,7 +187,7 @@ try {
     assert.equal(typeof bundle.default?.panels?.farm?.mount, 'function', '浏览器 bundle 缺 farm.mount');
   });
 
-  check('配置组与默认值一一对应，且都在 worlds.eat 段内', () => {
+  check('配置组覆盖 DEFAULTS 的其余键（enabled 由框架开关管理），且都在 worlds.eat 段内', () => {
     const group = config.configGroup('zh');
     const paths = Object.keys(group.schema.properties);
     assert.equal(group.owner, 'world:eat');
@@ -197,6 +197,10 @@ try {
       assert.ok(Object.hasOwn(config.DEFAULTS, short), `配置 ${short} 没有默认值`);
     }
     for (const short of Object.keys(config.DEFAULTS)) {
+      if (short === 'enabled') {
+        assert.ok(!paths.includes('worlds.eat.enabled'), 'World 启用开关由框架渲染，不该进配置 schema');
+        continue;
+      }
       assert.ok(paths.includes(`worlds.eat.${short}`), `默认值 ${short} 没有进 schema`);
     }
   });

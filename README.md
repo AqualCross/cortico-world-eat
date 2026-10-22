@@ -176,8 +176,7 @@ pnpm add "D:\path\to\cortico-world-eat" --ignore-workspace
 并自己在 `extensions/package.json` 里加
 `"cortico-world-eat": "link:D:\\path\\to\\cortico-world-eat"`。
 
-**装完必须重启 Coopanion**：扩展是 ESM 模块，进程内不会重新加载。重启后在
-`config.json` 的 `worlds.eat.enabled` 上打开（控制台里也有这个开关），九个工具和「厨房」「稻田」两个面板才会挂上。
+**装完必须重启 Coopanion**：扩展是 ESM 模块，进程内不会重新加载。重启后在 World 页启用本 World（写 `config.json` 的 `worlds.eat.enabled = true`），九个工具和「厨房」「稻田」两个面板才会挂上。
 
 ### 一份能用的 `worlds.eat` 长什么样
 
@@ -214,7 +213,7 @@ pnpm add "D:\path\to\cortico-world-eat" --ignore-workspace
 }
 ```
 
-改之前建议先备份 `config.json`。`enabled` 之外都可以在控制台「吃饭」页热改；状态本身在
+改之前建议先备份 `config.json`。启用开关在 World 页，其余配置都可以在控制台「吃饭」页热改；状态本身在
 `<dataDir>/eat/state.json`，不会因为改配置被重置。
 
 ## 配置
