@@ -146,8 +146,9 @@ test('eat_status: 初始状态有饱食度、米仓和电饭煲', async () => {
   assert.equal(res.failed, undefined);
   assert.match(res.text, /饱食度：100\/100（不饿）/);
   assert.match(res.text, /米仓：0\.00 kg 生米/);
-  assert.match(res.text, /电饭煲：0 碗熟饭/);
-  assert.match(res.text, /1 碗熟饭 = 200 g/);
+  assert.match(res.text, /电饭煲：空的/);
+  assert.match(res.text, /一碗熟饭 = 200 g/);
+  assert.match(res.text, /一次只盛一碗或半碗/);
 
   assert.equal(rig.timers.size, 1);
   await rig.world.stop();
@@ -164,13 +165,13 @@ test('eat_cook / eat_meal: 煮饭要等，饭好才能吃', async () => {
 
   const cooked = await rig.call('eat_cook', { bowls: 2 });
   assert.equal(cooked.failed, undefined);
-  assert.match(cooked.text, /你开始煮 2 碗饭，约 1 分钟后好/);
-  assert.match(cooked.text, /量已经锁定/);
+  assert.match(cooked.text, /够煮两碗的米淘好下了锅/);
+  assert.match(cooked.text, /煮好之前不能再下第二锅/);
   assert.match(cooked.text, /用了 200 g 生米/);
-  assert.match(cooked.text, /米仓还剩 0\.80 kg/);
+  assert.match(cooked.text, /米仓里还剩 0\.80 kg/);
 
   const cooking = await rig.call('eat_status');
-  assert.match(cooking.text, /电饭煲：正在煮 2 碗饭，约 1 分钟后好。这一锅的量已锁定。/);
+  assert.match(cooking.text, /电饭煲：正在煮两碗饭，约 1 分钟后好。这一锅的量已经定下。/);
 
   assert.equal(await finishCook(rig, 1), 1);
   const done = rig.events.at(-1).event;
@@ -178,12 +179,16 @@ test('eat_cook / eat_meal: 煮饭要等，饭好才能吃', async () => {
   assert.equal(done.meta.bowls, 2);
 
   const ready = await rig.call('eat_status');
-  assert.match(ready.text, /电饭煲：2 碗熟饭/);
+  assert.match(ready.text, /电饭煲：两碗热饭/);
 
   const petMeal = await rig.call('eat_meal', { bowls: 1 });
-  assert.match(petMeal.text, /你吃了 1 碗饭/);
-  assert.match(petMeal.text, /70 → 95\/100/);
-  assert.match(petMeal.text, /电饭煲里还剩 1 碗现成的饭/);
+  assert.match(petMeal.text, /一碗饭下肚，现在撑得有点坐不住。/);
+  assert.match(petMeal.text, /锅里还剩一碗现成的饭/);
+
+  // 一次只盛一碗：想多吃要再盛一次。
+  const tooMuch = await rig.call('eat_meal', { bowls: 2 });
+  assert.equal(tooMuch.failed, true);
+  assert.match(tooMuch.text, /一碗或半碗|一碗一碗/);
 
   await rig.world.stop();
 });
@@ -198,11 +203,11 @@ test('失败回执: 饭不够或米不够时不会凭空变出食物', async () 
 
   const noMeal = await rig.call('eat_meal', { bowls: 1 });
   assert.equal(noMeal.failed, true);
-  assert.match(noMeal.text, /电饭煲里只有 0 碗现成的饭/);
+  assert.match(noMeal.text, /电饭煲里没有现成的饭/);
 
   const still = await rig.call('eat_status');
   assert.match(still.text, /米仓：0\.00 kg/);
-  assert.match(still.text, /电饭煲：0 碗/);
+  assert.match(still.text, /电饭煲：空的/);
   await rig.world.stop();
 });
 
@@ -235,13 +240,13 @@ test('厨房面板: 主人加米、煮饭、吃饭；煮饭中锁定这一锅', 
   assert.equal(cooked.state.satiety, 100);
 
   // 煮饭中：再点煮饭 / 桌宠再煮都会被拒绝；也没有现成饭可吃。
-  await assert.rejects(() => rig.invoke('cook', [1]), /正在煮 2 碗/);
+  await assert.rejects(() => rig.invoke('cook', [1]), /正在煮两碗/);
   const petCook = await rig.call('eat_cook', { bowls: 1 });
   assert.equal(petCook.failed, true);
-  assert.match(petCook.text, /正在煮 2 碗/);
+  assert.match(petCook.text, /正在煮两碗/);
   const noMeal = await rig.call('eat_meal', { bowls: 1 });
   assert.equal(noMeal.failed, true);
-  assert.match(noMeal.text, /正在煮 2 碗/);
+  assert.match(noMeal.text, /正在煮两碗/);
 
   const mid = await rig.invoke('state');
   assert.equal(mid.cooking.bowls, 2);
@@ -314,7 +319,8 @@ test('吃回去之后，下一次掉到同一阶段会重新提醒', async () =>
   await rig.invoke('addRice', [1]);
   await rig.call('eat_cook', { bowls: 2 });
   assert.equal(await finishCook(rig, 1), 1); // 饭好事件
-  await rig.call('eat_meal', { bowls: 2 }); // 60 -> 100
+  await rig.call('eat_meal', { bowls: 1 }); // 60 -> 85
+  await rig.call('eat_meal', { bowls: 1 }); // 85 -> 100
   const status = await rig.call('eat_status');
   assert.match(status.text, /饱食度：100\/100（不饿）/);
 
@@ -341,7 +347,7 @@ test('跨重启保留: 米仓、电饭煲和饱食度都接着上次算', async 
   const status = await rig2.call('eat_status');
   assert.match(status.text, /饱食度：100\/100/);
   assert.match(status.text, /米仓：0\.80 kg/);
-  assert.match(status.text, /电饭煲：1 碗熟饭/);
+  assert.match(status.text, /电饭煲：一碗热饭/);
   await rig2.world.stop();
 });
 
@@ -371,7 +377,9 @@ test('配置热改: 每碗恢复量在下一次吃饭时生效', async () => {
 
   rig.world.cfg.satietyPerBowl = 40;
   const meal = await rig.call('eat_meal', { bowls: 0.5 });
-  assert.match(meal.text, /70 → 90\/100/);
+  assert.match(meal.text, /半碗饭下肚，现在肚子饱饱的。/);
+  const status = await rig.call('eat_status');
+  assert.match(status.text, /饱食度：90\/100/);
   await rig.world.stop();
 });
 
@@ -387,10 +395,10 @@ test('farm_status: 空田也能查，说明怎么开始', async () => {
   assert.equal(res.failed, undefined);
   assert.match(res.text, /稻田状态/);
   assert.match(res.text, /田里空着，可以播种/);
-  assert.match(res.text, /土壤水分：45%/);
+  assert.match(res.text, /土壤：水分 45%/);
   assert.match(res.text, /水池：80 L \/ 200 L/);
   assert.match(res.text, /还没下过/);
-  assert.match(res.text, /灾害：没有虫；没有鸟；没立稻草人/);
+  assert.match(res.text, /田里：没有虫；没有鸟；没立稻草人/);
   await rig.world.stop();
 });
 
@@ -400,19 +408,19 @@ test('种田全流程: 播种 → 浇水 → 施肥 → 成熟 → 收割进米�
 
   const sown = await rig.call('farm_sow');
   assert.equal(sown.failed, undefined);
-  assert.match(sown.text, /撒进了田里/);
+  assert.match(sown.text, /撒进田里/);
 
   const again = await rig.call('farm_sow');
   assert.equal(again.failed, true);
   assert.match(again.text, /已经种着水稻/);
 
   const watered = await rig.call('farm_water');
-  assert.match(watered.text, /用了 8 L/);
-  assert.match(watered.text, /发芽期浇水效果 ×1\.6/);
-  assert.match(watered.text, /进度 0% → 4\.8%/);
+  assert.match(watered.text, /打了 8 L/);
+  assert.match(watered.text, /发芽期的稻子正吃水（×1\.6）/);
+  assert.match(watered.text, /进度从 0% 推到了 4\.8%/);
 
   const fertilized = await rig.call('farm_fertilize');
-  assert.match(fertilized.text, /不消耗化肥/);
+  assert.match(fertilized.text, /一季只施一次/);
   assert.match(fertilized.text, /×1\.5/);
   assert.match(fertilized.text, /从 1\.50 kg 提到 2\.25 kg/);
 
@@ -428,13 +436,13 @@ test('种田全流程: 播种 → 浇水 → 施肥 → 成熟 → 收割进米�
   assert.equal(await runTick(rig), 0); // 水稻成熟不投递事件
 
   const ripe = await rig.call('farm_status');
-  assert.match(ripe.text, /成熟期，进度 100%/);
-  assert.match(ripe.text, /可以收割/);
+  assert.match(ripe.text, /已经熟了/);
+  assert.match(ripe.text, /可以割了/);
   assert.match(ripe.text, /2\.25 kg/);
 
   const harvested = await rig.call('farm_harvest');
   assert.match(harvested.text, /2\.25 kg 稻谷/);
-  assert.match(harvested.text, /施过肥，×1\.5/);
+  assert.match(harvested.text, /施过肥.*×1\.5/);
 
   const status = await rig.call('eat_status');
   assert.match(status.text, /米仓：2\.25 kg/);
@@ -456,7 +464,7 @@ test('浇水效果: 不同阶段不一样，成熟后不能浇', async () => {
   await rig.farm('sow');
 
   const first = await rig.call('farm_water');
-  assert.match(first.text, /发芽期浇水效果 ×1\.6/);
+  assert.match(first.text, /发芽期的稻子正吃水（×1\.6）/);
 
   // 直接把进度推到抽穗期：下一次浇水的效果应该换成 ×1.4。
   const state = await rig.farm('state');
@@ -468,7 +476,7 @@ test('浇水效果: 不同阶段不一样，成熟后不能浇', async () => {
   cfg.growHours = 1000;
 
   const mid = await rig.call('farm_status');
-  assert.match(mid.text, /浇水效果：当前(抽穗期|灌浆期|分蘖期|幼苗期) ×/);
+  assert.match(mid.text, /浇水效果：现在是(抽穗期|灌浆期|分蘖期|幼苗期)，×/);
 
   // 成熟以后浇水会被拒绝。
   const ripe = makeWorld({ cfg: { growHours: 0.5, moistureDryPerHour: 0, rainChancePerHour: 0, hungerPerHour: 0 } });
@@ -585,7 +593,7 @@ test('跨重启保留: 田里的进度、施肥、水池都接着上次算', asy
   await rig2.world.start(rig2.host);
   const status = await rig2.call('farm_status');
   assert.match(status.text, /进度 4\.8%/);
-  assert.match(status.text, /已施过/);
+  assert.match(status.text, /已经施过/);
   assert.match(status.text, /水池：92 L/);
   const after = await rig2.farm('state');
   assert.equal(after.farm.planted, true);
@@ -695,8 +703,8 @@ test('稻草人: 立起来赶鸟、挡住新鸟群、倒了才能再立', async 
 
   const built = await rig.call('farm_scarecrow');
   assert.equal(built.failed, undefined);
-  assert.match(built.text, /立起了稻草人/);
-  assert.match(built.text, /只赶鸟、不管虫/);
+  assert.match(built.text, /立起稻草人/);
+  assert.match(built.text, /只吓鸟，不管虫/);
 
   const again = await rig.call('farm_scarecrow');
   assert.equal(again.failed, true);
@@ -733,7 +741,7 @@ test('收割彩蛋: 回执只报总数，半个字都不提多收', async () => 
   await runTick(rig);
 
   const before = await rig.call('farm_status');
-  assert.match(before.text, /预计 1\.50 kg/);
+  assert.match(before.text, /估摸着能收 1\.50 kg/);
 
   const harvested = await rig.call('farm_harvest');
   assert.equal(harvested.failed, undefined);
@@ -752,7 +760,7 @@ test('旱情: 土壤干透时状态里会点名', async () => {
   rig.clock.advance(1 * HOUR);
   await runTick(rig);
   const status = await rig.call('farm_status');
-  assert.match(status.text, /旱情：土壤已经干透/);
+  assert.match(status.text, /旱情：土已经干透/);
   assert.match(status.text, /长势 ×0\.3/);
   await rig.world.stop();
 });

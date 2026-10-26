@@ -15,6 +15,8 @@ export const RAW_GRAMS_PER_BOWL = 100;
 export const HOUR_MS = 60 * 60 * 1000;
 export const MIN_BOWLS = 0.5;
 export const MAX_BOWLS = 20;
+/** 宠物一次最多吃一碗：饭要一碗一碗吃。主人面板不受这个限制。 */
+export const PET_MEAL_MAX_BOWLS = 1;
 
 // ---------------------------------------------------------------------------
 // 稻田：一块水田、一个水池，外加虫、鸟和稻草人
@@ -138,14 +140,18 @@ export function normalizeWho(value) {
   throw new Error('who 只能是 pet（宠物自己）或 owner（主人）。');
 }
 
-/** 碗数只接受 0.5–20、按半碗递增。 */
-function validBowls(value) {
+/** 碗数只接受 0.5–max、按半碗递增；宠物吃饭时 max 是 1。 */
+function validBowls(value, maxBowls = MAX_BOWLS) {
   const n = Number(value);
-  if (!Number.isFinite(n) || n < MIN_BOWLS || n > MAX_BOWLS) {
-    throw new Error(`量要在 ${MIN_BOWLS}–${MAX_BOWLS} 碗之间。`);
+  const max = clamp(Number(maxBowls) || MAX_BOWLS, MIN_BOWLS, MAX_BOWLS);
+  if (!Number.isFinite(n) || n < MIN_BOWLS || n > max) {
+    if (Number.isFinite(n) && n > max && max <= PET_MEAL_MAX_BOWLS) {
+      throw new Error('一次只盛一碗或半碗，饭要一碗一碗吃；没吃饱就再盛一碗。');
+    }
+    throw new Error(`量要在半碗到${formatBowlsZh(max)}之间。`);
   }
   if (Math.abs(n * 2 - Math.round(n * 2)) > 1e-9) {
-    throw new Error('量要按半碗递增，例如 0.5、1、1.5。');
+    throw new Error('量要按半碗递增，例如半碗、一碗、一碗半。');
   }
   return Math.round(n * 2) / 2;
 }
@@ -153,6 +159,40 @@ function validBowls(value) {
 export function formatBowls(value) {
   const n = round1(Number(value) || 0);
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+const CN_DIGITS = Object.freeze(['零', '一', '二', '三', '四', '五', '六', '七', '八', '九']);
+
+function cnNumber(n) {
+  if (n >= 100) return String(n);
+  if (n < 10) return CN_DIGITS[n];
+  if (n === 10) return '十';
+  if (n < 20) return `十${CN_DIGITS[n - 10]}`;
+  const ones = n % 10;
+  return `${CN_DIGITS[Math.floor(n / 10)]}十${ones ? CN_DIGITS[ones] : ''}`;
+}
+
+/** 给模型读的碗数：半碗、一碗、一碗半、两碗；0 就是“0 碗”。 */
+export function formatBowlsZh(value) {
+  const halves = Math.round((Number(value) || 0) * 2);
+  if (halves <= 0) return '0 碗';
+  const whole = Math.floor(halves / 2);
+  const half = halves % 2 === 1;
+  if (whole === 0) return '半碗';
+  const head = whole === 2 ? '两' : cnNumber(whole);
+  return `${head}碗${half ? '半' : ''}`;
+}
+
+/** 饱食度换成一句肚子里的感觉；分界跟 HUNGER_THRESHOLDS 对齐。 */
+export function bellyLabel(satiety) {
+  const n = clamp(Number(satiety) || 0, 0, 100);
+  if (n >= 95) return '撑得有点坐不住';
+  if (n >= 80) return '肚子饱饱的';
+  if (n > 60) return '有点饱了';
+  if (n > 35) return '还有点饿';
+  if (n > 15) return '肚子空落落的';
+  if (n > 0) return '饿得慌';
+  return '饿得前胸贴后背';
 }
 
 export function formatKg(grams) {
@@ -265,19 +305,23 @@ export function cook(state, opts = {}) {
   settleCooking(state, now);
   if (state.cooking) {
     const wait = remainingMinutes(state.cooking.finishesAtMs - now);
-    throw new Error(`电饭煲正在煮 ${formatBowls(state.cooking.bowls)} 碗饭，约 ${wait} 分钟后好；这一锅的量已锁定，不能再煮或改量。`);
+    throw new Error(`电饭煲正在煮${formatBowlsZh(state.cooking.bowls)}饭，约 ${wait} 分钟后好；这一锅的量已锁定，不能再煮或改量。`);
   }
   const rawGrams = Math.round(bowls * RAW_GRAMS_PER_BOWL);
   const producedGrams = Math.round(bowls * BOWL_GRAMS);
   if (state.riceGrams < rawGrams) {
-    throw new Error(`米仓只有 ${formatKg(state.riceGrams)} kg 生米，不够煮 ${formatBowls(bowls)} 碗（需要 ${rawGrams} g）。让主人加米，或少煮一点。`);
+    throw new Error(`米仓只有 ${formatKg(state.riceGrams)} kg 生米，不够煮${formatBowlsZh(bowls)}饭（需要 ${rawGrams} g）。让主人加米，或少煮一点。`);
   }
   const capacity = (opts.cookerCapacityBowls === undefined
     ? 6
     : Math.max(0, Number(opts.cookerCapacityBowls) || 0)) * BOWL_GRAMS;
   if (state.cookedGrams + producedGrams > capacity + 1e-6) {
     const room = Math.max(0, capacity - state.cookedGrams);
-    throw new Error(`电饭煲最多 ${formatBowls(capacity / BOWL_GRAMS)} 碗，现在已有 ${formatBowls(state.cookedGrams / BOWL_GRAMS)} 碗，只放得下 ${formatBowls(room / BOWL_GRAMS)} 碗。先吃掉一些，或少煮一点。`);
+    const have = state.cookedGrams >= BOWL_GRAMS / 2
+      ? `锅里已经有${formatBowlsZh(state.cookedGrams / BOWL_GRAMS)}，`
+      : '';
+    const roomText = room >= BOWL_GRAMS / 2 ? formatBowlsZh(room / BOWL_GRAMS) : '一碗也放不下';
+    throw new Error(`电饭煲最多${formatBowlsZh(capacity / BOWL_GRAMS)}，${have}只放得下${roomText}。先吃掉一些，或少煮一点。`);
   }
   const minutes = Number.isFinite(Number(opts.cookMinutes)) ? Math.max(0, Number(opts.cookMinutes)) : 30;
   const cookMs = Math.round(minutes * 60_000);
@@ -305,15 +349,18 @@ export function cook(state, opts = {}) {
 
 /** 从电饭煲里吃饭；宠物吃会恢复饱食度，主人吃只消耗饭。 */
 export function eat(state, opts = {}) {
-  const bowls = validBowls(opts.bowls);
+  const bowls = validBowls(opts.bowls, opts.maxBowls);
   const who = normalizeWho(opts.who);
   settleCooking(state, state.updatedAtMs);
   const grams = Math.round(bowls * BOWL_GRAMS);
   if (state.cookedGrams < grams) {
     const wait = state.cooking
-      ? `（电饭煲正在煮 ${formatBowls(state.cooking.bowls)} 碗，约 ${remainingMinutes(state.cooking.finishesAtMs - state.updatedAtMs)} 分钟后好）`
+      ? `（电饭煲正在煮${formatBowlsZh(state.cooking.bowls)}，约 ${remainingMinutes(state.cooking.finishesAtMs - state.updatedAtMs)} 分钟后好）`
       : '';
-    throw new Error(`电饭煲里只有 ${formatBowls(state.cookedGrams / BOWL_GRAMS)} 碗现成的饭，不够吃 ${formatBowls(bowls)} 碗${wait}。先等饭好，或少盛一点。`);
+    const left = state.cookedGrams >= BOWL_GRAMS / 2
+      ? `只有${formatBowlsZh(state.cookedGrams / BOWL_GRAMS)}现成的饭`
+      : '没有现成的饭';
+    throw new Error(`电饭煲里${left}，不够吃${formatBowlsZh(bowls)}${wait}。先等饭好，或少盛一点。`);
   }
   const beforeSatiety = state.satiety;
   state.cookedGrams -= grams;

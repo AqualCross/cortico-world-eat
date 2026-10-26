@@ -27,8 +27,8 @@ const ZH = {
   rate: '消耗',
   perBowl: '每碗恢复',
   addTitle: '往米仓加米',
-  addDesc: '加的是生米；1 碗熟饭用 100 g 生米。',
-  addButton: '加米',
+  addDesc: '一次加一斤（0.5 kg）生米；1 碗熟饭用 100 g 生米。',
+  addButton: '加一斤米',
   cookTitle: '做饭',
   cookDesc: '按碗煮；1 碗熟饭 = 200 g。煮饭需要时间，开始后这一锅的量锁定。',
   cookButton: '煮饭',
@@ -38,8 +38,8 @@ const ZH = {
   cookingNote: (c) => `这一锅已锁定：${formatBowls(c.bowls)} 碗，约 ${cookingMinutes(c)} 分钟后好。`,
   cookingDetail: (c) => `正在煮 ${formatBowls(c.bowls)} 碗 · 约 ${cookingMinutes(c)} 分钟`,
   eatTitle: '主人吃饭',
-  eatDesc: '从电饭煲盛给你自己；主人的饱食度不记录。',
-  eatButton: '吃饭',
+  eatDesc: '从电饭煲盛给你自己，一次半碗；想多吃就多点几下。主人的饱食度不记录。',
+  eatButton: '吃半碗饭',
   refresh: '刷新',
   kgUnit: 'kg',
   bowlUnit: '碗',
@@ -114,8 +114,8 @@ const EN = {
   rate: 'Drain',
   perBowl: 'Per bowl',
   addTitle: 'Add rice to the bin',
-  addDesc: 'Raw rice; one bowl of cooked rice uses 100 g.',
-  addButton: 'Add rice',
+  addDesc: 'Adds 500 g (1 jin) of raw rice each click; one bowl of cooked rice uses 100 g.',
+  addButton: 'Add 500 g rice',
   cookTitle: 'Cook',
   cookDesc: 'By the bowl; one bowl of cooked rice is 200 g. Cooking takes time and locks the batch amount.',
   cookButton: 'Cook',
@@ -125,8 +125,8 @@ const EN = {
   cookingNote: (c) => `Batch locked: ${formatBowls(c.bowls)} ${c.bowls === 1 ? 'bowl' : 'bowls'}, ready in about ${cookingMinutes(c)} min.`,
   cookingDetail: (c) => `cooking ${formatBowls(c.bowls)} ${c.bowls === 1 ? 'bowl' : 'bowls'} · about ${cookingMinutes(c)} min`,
   eatTitle: 'Owner eats',
-  eatDesc: 'Eat from the cooker; the owner\'s satiety is not tracked.',
-  eatButton: 'Eat',
+  eatDesc: 'Eat half a bowl from the cooker; click again for more. The owner\'s satiety is not tracked.',
+  eatButton: 'Eat half a bowl',
   refresh: 'Refresh',
   kgUnit: 'kg',
   bowlUnit: 'bowls',
@@ -251,24 +251,15 @@ function kitchenPanel(ctx) {
 
   let started = false;
 
-  // 加米
+  // 加米：固定一斤，连点多加。
   const addCard = ctx.ui.section(tx.addTitle, tx.addDesc);
   const addRow = ctx.ui.h('div', 'eat-row');
-  const addInput = ctx.ui.input({
-    type: 'number',
-    value: '0.5',
-    cls: 'mono',
-    onCommit: () => { void run('addRice', addInput, tx.addButton); },
-  });
-  addInput.min = '0.1';
-  addInput.max = '25';
-  addInput.step = '0.1';
   const addButton = ctx.ui.button(tx.addButton, {
     variant: 'primary',
     size: 'sm',
-    onClick: () => { void run('addRice', addInput, tx.addButton); },
+    onClick: () => { void run('addRice', 0.5, tx.addButton); },
   });
-  addRow.append(addInput, ctx.ui.h('span', 'eat-sub', tx.kgUnit), addButton);
+  addRow.appendChild(addButton);
   addCard.appendChild(addRow);
   body.appendChild(addCard);
 
@@ -296,24 +287,15 @@ function kitchenPanel(ctx) {
   cookCard.appendChild(cookNote);
   body.appendChild(cookCard);
 
-  // 主人吃饭
+  // 主人吃饭：固定半碗，连点就是一碗。
   const eatCard = ctx.ui.section(tx.eatTitle, tx.eatDesc);
   const eatRow = ctx.ui.h('div', 'eat-row');
-  const eatInput = ctx.ui.input({
-    type: 'number',
-    value: '1',
-    cls: 'mono',
-    onCommit: () => { void run('eat', eatInput, tx.eatButton); },
-  });
-  eatInput.min = '0.5';
-  eatInput.max = '20';
-  eatInput.step = '0.5';
   const eatButton = ctx.ui.button(tx.eatButton, {
     variant: 'primary',
     size: 'sm',
-    onClick: () => { void run('eat', eatInput, tx.eatButton); },
+    onClick: () => { void run('eat', 0.5, tx.eatButton); },
   });
-  eatRow.append(eatInput, ctx.ui.h('span', 'eat-sub', tx.bowlUnit), eatButton);
+  eatRow.appendChild(eatButton);
   eatCard.appendChild(eatRow);
   body.appendChild(eatCard);
 
@@ -360,9 +342,7 @@ function kitchenPanel(ctx) {
     cookButton.textContent = cooking ? tx.cookingButton : tx.cookButton;
     cookButton.disabled = !started || !!cooking;
     eatButton.disabled = !started;
-    addInput.disabled = !started;
     cookInput.disabled = !started || !!cooking;
-    eatInput.disabled = !started;
     note.textContent = started ? tx.ready : tx.inactive;
   };
 
@@ -381,12 +361,12 @@ function kitchenPanel(ctx) {
     }
   };
 
-  const run = async (method, input, label) => {
+  const run = async (method, amount, label) => {
     if (!started) {
       note.textContent = tx.inactive;
       return;
     }
-    const value = Number(input.value);
+    const value = typeof amount === 'number' ? amount : Number(amount.value);
     if (!Number.isFinite(value) || value <= 0) {
       note.textContent = tx.badAmount;
       ctx.ui.toast(tx.badAmount, 'bad');

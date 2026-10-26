@@ -161,6 +161,9 @@ try {
     assert.ok(tools[1].tags.includes('write'));
     assert.equal(tools[1].parameters.required?.[0], 'bowls');
     assert.equal(tools[2].parameters.required?.[0], 'bowls');
+    // 饭要一碗一碗吃：宠物吃饭一次最多一碗。
+    assert.equal(tools[1].parameters.properties.bowls.maximum, 20);
+    assert.equal(tools[2].parameters.properties.bowls.maximum, 1);
     assert.equal(Object.hasOwn(tools[1].parameters.properties, 'who'), false);
     assert.equal(Object.hasOwn(tools[2].parameters.properties, 'who'), false);
     assert.equal(tools.some((tool) => tool.name === 'eat_add_rice'), false);
@@ -244,6 +247,12 @@ try {
     assert.equal(s.cookedGrams, 200);
     assert.equal(s.satiety, 95);
     assert.equal(meal.gained, 25);
+    // 饭要一碗一碗吃：宠物一次只能吃一碗或半碗，主人面板不限。
+    assert.throws(
+      () => state.eat(s, { bowls: 1.5, who: 'pet', maxBowls: state.PET_MEAL_MAX_BOWLS, satietyPerBowl: 25 }),
+      /一碗或半碗/,
+    );
+    assert.equal(s.cookedGrams, 200);
     const ownerMeal = state.eat(s, { bowls: 1, who: 'owner', satietyPerBowl: 25 });
     assert.equal(s.cookedGrams, 0);
     assert.equal(s.satiety, 95);

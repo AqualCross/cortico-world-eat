@@ -1,6 +1,6 @@
 {
   "name": "cortico-world-eat",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "description": "吃饭（Eat）—— 给 Coopanion 桌宠的 cortico World 扩展：饱食度、米仓、电饭煲，外加一块水稻田、一个水池和虫灾鸟灾；桌宠用工具做饭、吃饭、种田、立稻草人，主人在控制台厨房/稻田面板直接操作；煮饭和水稻都要时间，下雨会替田里浇水，鸟先吃虫再吃稻子。 / A cortico World extension with satiety, a rice bin, a rice cooker, one rice paddy, a water pool, pests and birds: the pet cooks, eats, farms and puts up scarecrows with tools, the owner uses the console panels; cooking and rice growth both take time, rain waters the field, and birds eat the pests before turning on the crop.",
   "license": "MIT",
@@ -39,6 +39,7 @@
   "files": [
     "src",
     "dist",
+    "assets/icon.png",
     "describe.json",
     "CHANGELOG.md",
     "README.md",
@@ -59,6 +60,7 @@
     "kind": "world",
     "api": 6,
     "displayName": "吃饭",
+    "icon": "assets/icon.png",
     "tags": [
       "game"
     ],

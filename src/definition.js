@@ -16,8 +16,8 @@ const TOOL_SUMMARIES = {
     en: 'The pet cooks rice from the bin in bowls.',
   },
   eat_meal: {
-    zh: '桌宠自己吃电饭煲里的熟饭，按碗选择量并恢复饱食度。',
-    en: 'The pet eats cooked rice in bowls and raises satiety.',
+    zh: '桌宠自己吃电饭煲里的熟饭，一次一碗或半碗。',
+    en: 'The pet eats one bowl or half a bowl of cooked rice at a time.',
   },
   farm_status: {
     zh: '查看水稻的进度、阶段、土壤水分、施肥情况、水池水量和最近一次下雨。',
