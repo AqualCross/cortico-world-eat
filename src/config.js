@@ -13,7 +13,7 @@ export const LABEL = '吃饭';
 export const EVENT_HUNGER = 'eat.hunger';
 export const EVENT_COOKED = 'eat.cooked';
 
-/** `worlds.eat` 段的默认值；键名与 configGroup 里的路径一一对应。 */
+/** `worlds.eat` 段的默认值；`enabled` 由框架的 World 开关管理，其余键与 configGroup 里的路径一一对应。 */
 export const DEFAULTS = Object.freeze({
   enabled: false,
   /** 每小时下降多少点饱食度；0 = 不会饿。 */
@@ -49,8 +49,6 @@ const ZH = {
   panelFarmDesc: '一块水稻田和一个水池。主人可以直接播种、浇水、施肥、收割、打水；桌宠用工具做同样的事。',
   config: {
     title: '吃饭',
-    enabled: '启用吃饭',
-    enabledDesc: '开启后桌宠拿到 eat_* / farm_* 九个工具，控制台出现「厨房」和「稻田」面板；同时开始按时间结算饱食度、水稻生长、下雨与虫鸟灾害。',
     hungerPerHour: '饱食度消耗',
     hungerPerHourDesc: '每小时下降多少点；0 = 不会饿。应用关着的时间也会补算。',
     satietyPerBowl: '每碗饭恢复',
@@ -113,8 +111,6 @@ const EN = {
   panelFarmDesc: 'One rice paddy and one water pool. The owner can sow, water, fertilize, harvest and fill the pool; the pet does the same with tools.',
   config: {
     title: 'Eating',
-    enabled: 'Enable Eating',
-    enabledDesc: 'Turns on the pet\'s six eat_* / farm_* tools, the console Kitchen and Paddy panels, and starts counting satiety, rice growth and rain over time.',
     hungerPerHour: 'Satiety drain',
     hungerPerHourDesc: 'Points lost per hour; 0 = never hungry. Time while the app is closed is caught up too.',
     satietyPerBowl: 'Satiety per bowl',
@@ -164,7 +160,7 @@ export function text(language = 'zh') {
   return language === 'en' ? EN : ZH;
 }
 
-/** WebUI 的配置组；路径必须落在 `worlds.eat.` 段内，且每个键都在 DEFAULTS 里有对应项。 */
+/** WebUI 的配置组；路径必须落在 `worlds.eat.` 段内，且每个键都在 DEFAULTS 里有对应项（`enabled` 除外，它由框架的 World 开关渲染）。 */
 export function configGroup(language = 'zh') {
   const t = text(language).config;
   const K = `worlds.${ID}`;
@@ -175,7 +171,6 @@ export function configGroup(language = 'zh') {
       type: 'object',
       title: t.title,
       properties: {
-        [`${K}.enabled`]: { type: 'boolean', title: t.enabled, description: t.enabledDesc, 'x-hot': true },
         [`${K}.hungerPerHour`]: {
           type: 'number',
           title: t.hungerPerHour,

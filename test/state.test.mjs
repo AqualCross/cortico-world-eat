@@ -16,6 +16,7 @@ import {
   addRice,
   advanceFarm,
   advanceState,
+  bellyLabel,
   buildScarecrow,
   cook,
   eat,
@@ -24,6 +25,7 @@ import {
   farmSummary,
   fertilizeField,
   fillPool,
+  formatBowlsZh,
   harvestField,
   loadState,
   migrateState,
@@ -110,7 +112,7 @@ test('cook: 先进入煮饭中，到点才变熟饭，且这一锅不能改量',
   assert.equal(s.cooking.finishesAtMs, 60000);
 
   // 煮饭中：不能开始下一锅，也不能改这一次的量。
-  assert.throws(() => cook(s, { bowls: 1, who: 'pet', cookerCapacityBowls: 6, cookMinutes: 1, nowMs: 0 }), /正在煮 2 碗/);
+  assert.throws(() => cook(s, { bowls: 1, who: 'pet', cookerCapacityBowls: 6, cookMinutes: 1, nowMs: 0 }), /正在煮两碗/);
   assert.throws(() => cook(s, { bowls: 4, who: 'pet', cookerCapacityBowls: 6, cookMinutes: 1, nowMs: 0 }), /正在煮/);
 
   const advanced = advanceState(s, 60000, 0);
@@ -170,12 +172,35 @@ test('eat: 饱食度封顶 100', () => {
   assert.equal(result.gained, 10);
 });
 
+test('eat: 宠物一次只吃一碗或半碗，想多吃就再盛一碗', () => {
+  const s = newState(0);
+  s.satiety = 50;
+  s.cookedGrams = 3 * BOWL_GRAMS;
+  assert.throws(
+    () => eat(s, { bowls: 2, who: 'pet', maxBowls: 1, satietyPerBowl: 25 }),
+    /一碗或半碗|一碗一碗/,
+  );
+  assert.equal(s.cookedGrams, 3 * BOWL_GRAMS);
+
+  const half = eat(s, { bowls: 0.5, who: 'pet', maxBowls: 1, satietyPerBowl: 25 });
+  assert.equal(half.grams, 100);
+  assert.equal(s.satiety, 62.5);
+  const whole = eat(s, { bowls: 1, who: 'pet', maxBowls: 1, satietyPerBowl: 25 });
+  assert.equal(whole.grams, BOWL_GRAMS);
+  assert.equal(s.satiety, 87.5);
+
+  // 主人面板不受一碗限制。
+  const owner = eat(s, { bowls: 1.5, who: 'owner', satietyPerBowl: 25 });
+  assert.equal(owner.grams, 1.5 * BOWL_GRAMS);
+  assert.equal(s.satiety, 87.5);
+});
+
 test('eat: 煮饭中还没有现成饭时不能吃，饭好后可以吃', () => {
   const s = newState(0);
   s.satiety = 50;
   s.riceGrams = 1000;
   cook(s, { bowls: 2, who: 'pet', cookerCapacityBowls: 6, cookMinutes: 1, nowMs: 0 });
-  assert.throws(() => eat(s, { bowls: 1, who: 'pet', satietyPerBowl: 25 }), /正在煮 2 碗/);
+  assert.throws(() => eat(s, { bowls: 1, who: 'pet', satietyPerBowl: 25 }), /正在煮两碗/);
 
   advanceState(s, 60000, 0);
   const meal = eat(s, { bowls: 1, who: 'pet', satietyPerBowl: 25 });
@@ -193,6 +218,28 @@ test('addRice: 加米、容量上限和最小量', () => {
 
   s.riceGrams = 5000;
   assert.throws(() => addRice(s, { kg: 0.1, riceCapacityGrams: 5000 }), /已经满了/);
+});
+
+test('formatBowlsZh: 半碗、一碗、一碗半、两碗', () => {
+  assert.equal(formatBowlsZh(0.5), '半碗');
+  assert.equal(formatBowlsZh(1), '一碗');
+  assert.equal(formatBowlsZh(1.5), '一碗半');
+  assert.equal(formatBowlsZh(2), '两碗');
+  assert.equal(formatBowlsZh(2.5), '两碗半');
+  assert.equal(formatBowlsZh(10), '十碗');
+  assert.equal(formatBowlsZh(12.5), '十二碗半');
+  assert.equal(formatBowlsZh(20), '二十碗');
+  assert.equal(formatBowlsZh(0), '0 碗');
+});
+
+test('bellyLabel: 肚子感觉跟着饥饿阶段走', () => {
+  assert.equal(bellyLabel(100), '撑得有点坐不住');
+  assert.equal(bellyLabel(85), '肚子饱饱的');
+  assert.equal(bellyLabel(70), '有点饱了');
+  assert.equal(bellyLabel(50), '还有点饿');
+  assert.equal(bellyLabel(20), '肚子空落落的');
+  assert.equal(bellyLabel(10), '饿得慌');
+  assert.equal(bellyLabel(0), '饿得前胸贴后背');
 });
 
 test('stageOf: 阈值边界', () => {
